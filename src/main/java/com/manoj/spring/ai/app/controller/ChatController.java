@@ -15,7 +15,7 @@ public class ChatController {
     }
 
     @GetMapping("/chat")
-    public String chat(@RequestParam("msg")String msg){
-        return chatClient.prompt(msg).call().content();
+    public String chat(@RequestParam("message")String message){
+        return chatClient.prompt(message).call().content();
     }
 }
