@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/rag/")
@@ -23,6 +24,9 @@ public class RAGController {
 
     @Value("classpath:/promptTemplates/systemPromptRandomDataTemplate.st")
     private Resource sentencePromptTemplate;
+
+    @Value("classpath:/promptTemplates/hrPolicySystemPromptTemplate.st")
+    Resource hrSystemTemplate;
 
     public RAGController(@Qualifier("memoryChatClient") ChatClient chatClient, VectorStore vectorStore){
         this.chatClient = chatClient;
@@ -50,5 +54,24 @@ public class RAGController {
 
         return ResponseEntity.ok(llmResponse);
 
+    }
+
+
+    @GetMapping("/chat/hr-policy")
+    public ResponseEntity<String> documentChat(@RequestHeader("username") String username,
+                                               @RequestParam("message") String message) {
+        SearchRequest searchRequest =
+                SearchRequest.builder().query(message).topK(3).similarityThreshold(0.4).build();
+        List<Document> similarDocs =  vectorStore.similaritySearch(searchRequest);
+        String similarContext = similarDocs.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining(System.lineSeparator()));
+        String answer = chatClient.prompt()
+                .system(promptSystemSpec -> promptSystemSpec.text(hrSystemTemplate)
+                                .param("documents", similarContext))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, username))
+                .user(message)
+                .call().content();
+        return ResponseEntity.ok(answer);
     }
 }
